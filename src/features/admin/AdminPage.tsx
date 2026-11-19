@@ -43,8 +43,14 @@ export function AdminPage() {
   const [busqueda, setBusqueda] = useState('');
   const [filtroDisc, setFiltroDisc] = useState('');
 
+  // Leer también de sessionStorage por si el estado React aún no propagó
+  const sessionUser = (() => {
+    try { return JSON.parse(sessionStorage.getItem('session-user') ?? 'null'); } catch { return null; }
+  })();
+  const userEfectivo = user ?? sessionUser;
+
   // Protección: si no es admin, redirigir al login
-  if (!user || user.role !== 'admin') {
+  if (!userEfectivo || userEfectivo.role !== 'admin') {
     return <Navigate to="/login" replace />;
   }
 
@@ -71,7 +77,7 @@ export function AdminPage() {
           <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.85 }}>CompraFácil Inclusiva</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <span style={{ fontSize: '0.9rem' }}>Sesión: <strong>{user.name}</strong></span>
+          <span style={{ fontSize: '0.9rem' }}>Sesión: <strong>{userEfectivo.name}</strong></span>
           <button
             onClick={() => { logout(); navigate('/login'); }}
             style={{

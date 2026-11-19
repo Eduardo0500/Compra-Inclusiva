@@ -1,6 +1,6 @@
 /**
- * AuthContext – gestión simple de sesión en memoria.
- * Al hacer login carga automáticamente las preferencias de accesibilidad guardadas.
+ * AuthContext – gestión de sesión.
+ * Persiste el usuario en sessionStorage para sobrevivir navegaciones internas.
  */
 import {
   createContext,
@@ -23,20 +23,36 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const SESSION_KEY = 'session-user';
+
+function readSession(): User | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(readSession);
   const { loadPrefs } = useAccessibility();
 
   const login = useCallback(
     (u: User) => {
+      // Persistir en sessionStorage ANTES de setUser para que cualquier
+      // componente que monte inmediatamente después ya lo pueda leer
+      try {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(u));
+      } catch { /* noop */ }
       setUser(u);
-      // WCAG 3.3.7 – Entrada redundante: las preferencias se aplican solas
       loadPrefs(u.accessibilityPreferences);
     },
     [loadPrefs]
   );
 
   const logout = useCallback(() => {
+    sessionStorage.removeItem(SESSION_KEY);
     setUser(null);
   }, []);
 

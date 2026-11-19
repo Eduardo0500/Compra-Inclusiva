@@ -1,0 +1,168 @@
+/* ══════════════════════════════════════════════
+   Botón flotante de accesibilidad (FAB)
+   WCAG 2.4.11: no queda tapado por barras fijas
+   WCAG 3.2.6: siempre en la misma esquina
+   ══════════════════════════════════════════════ */
+.fab {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1000;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: #ffffff;
+  border: 3px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: background-color 0.15s, transform 0.1s;
+}
+
+.fab:hover {
+  background-color: var(--color-primary-dark);
+  transform: scale(1.05);
+}
+
+.fab:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 4px;
+}
+
+/* ══════════════════════════════════════════════
+   Panel lateral
+   ══════════════════════════════════════════════ */
+.panel {
+  position: fixed;
+  bottom: 5rem;
+  right: 1.5rem;
+  z-index: 999;
+  width: min(360px, calc(100vw - 2rem));
+  background-color: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  outline: none; /* el foco está gestionado por focus-visible */
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.panelTitle {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.closeBtn {
+  min-height: 36px;
+  min-width: 36px;
+  font-size: 1.1rem;
+  padding: 0.3rem 0.6rem;
+}
+
+.panelBody {
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.panelFooter {
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--color-border);
+}
+
+/* ══════════════════════════════════════════════
+   Fila de preferencia
+   ══════════════════════════════════════════════ */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowLabel {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-text);
+  flex: 1;
+}
+
+.rowDesc {
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  color: var(--color-text-muted);
+  margin-top: 0.1rem;
+}
+
+.select {
+  min-height: 40px;
+  padding: 0.3rem 0.5rem;
+  font-size: var(--font-size-sm);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+  min-width: 90px;
+}
+
+/* ══════════════════════════════════════════════
+   Toggle switch (role="switch") – WCAG 4.1.2
+   ══════════════════════════════════════════════ */
+.toggle {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  min-width: 48px;
+  border-radius: 14px;
+  background-color: var(--color-border);
+  border: 2px solid var(--color-border);
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.toggleOn {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.toggleThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  transition: transform 0.2s;
+  pointer-events: none;
+}
+
+.toggleOn .toggleThumb {
+  transform: translateX(20px);
+}

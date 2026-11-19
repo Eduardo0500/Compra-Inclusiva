@@ -27,7 +27,8 @@ function disabilityLabel(d: string | null): string {
   return DISABILITY_LABELS[d] ?? d;
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso?: string): string {
+  if (!iso) return '—';
   try {
     return new Intl.DateTimeFormat('es-ES', {
       dateStyle: 'short',

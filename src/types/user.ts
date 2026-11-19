@@ -17,6 +17,6 @@ export interface User {
   disabilityConsent: boolean;
   /** Preferencias guardadas; se aplican al hacer login */
   accessibilityPreferences: AccessibilityPreferences;
-  /** Fecha/hora de registro */
-  registeredAt: string;
+  /** Fecha/hora de registro (opcional por compatibilidad con datos anteriores) */
+  registeredAt?: string;
 }

@@ -3,6 +3,10 @@
  * WCAG 3.3.8: sin CAPTCHA cognitivo, autocomplete obligatorio.
  * WCAG 2.2.1: la sesión no expira sin aviso.
  * Al hacer login las preferencias guardadas se aplican solas (AuthContext).
+ *
+ * Credenciales de administrador (hardcodeadas, solo para demo):
+ *   Usuario: admin@compral.com
+ *   Contraseña: Admin2024!
  */
 import { Link, useNavigate } from 'react-router-dom';
 import { FormField } from '../../shared/FormField';
@@ -13,6 +17,11 @@ import { useAccessibility } from '../../app/AccessibilityContext';
 import { DEFAULT_PREFERENCES } from '../../types/accessibility';
 import type { User } from '../../types/user';
 import logo from '../../assets/logo.png';
+
+// ─── Credenciales del administrador (demo / hardcodeadas) ───────────────────
+const ADMIN_EMAIL    = 'admin@compral.com';
+const ADMIN_PASSWORD = 'Admin2024!';
+// ────────────────────────────────────────────────────────────────────────────
 
 interface LoginValues {
   email: string;
@@ -37,8 +46,25 @@ export function LoginPage() {
     useFormValidation<LoginValues>(INITIAL, validate);
 
   const handleLogin = handleSubmit((v) => {
-    // Simulación: en producción aquí va la llamada a la API.
-    // Recuperamos preferencias guardadas en localStorage si las hay.
+    // ── Acceso de administrador ──────────────────────────────────────────────
+    if (v.email === ADMIN_EMAIL && v.password === ADMIN_PASSWORD) {
+      const adminUser: User = {
+        id: 'admin',
+        name: 'Administrador',
+        email: ADMIN_EMAIL,
+        role: 'admin',
+        disability: null,
+        disabilityConsent: false,
+        accessibilityPreferences: DEFAULT_PREFERENCES,
+        registeredAt: new Date().toISOString(),
+      };
+      login(adminUser);
+      announce('Acceso de administrador correcto. Bienvenido.');
+      navigate('/admin');
+      return;
+    }
+
+    // ── Acceso de usuario normal (simulación) ────────────────────────────────
     const savedPrefs = (() => {
       try {
         const raw = localStorage.getItem('a11y-prefs');
@@ -52,9 +78,11 @@ export function LoginPage() {
       id: 'demo-user',
       name: v.email.split('@')[0],
       email: v.email,
+      role: 'user',
       disability: null,
       disabilityConsent: false,
       accessibilityPreferences: savedPrefs,
+      registeredAt: new Date().toISOString(),
     };
     login(user);
     announce('Inicio de sesión correcto. Bienvenido, ' + user.name);

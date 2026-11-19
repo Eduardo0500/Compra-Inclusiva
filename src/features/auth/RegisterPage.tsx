@@ -10,6 +10,7 @@ import { SkipLink } from '../../shared/SkipLink';
 import { useFormValidation } from './useFormValidation';
 import { useAuth } from '../../app/AuthContext';
 import { useAccessibility } from '../../app/AccessibilityContext';
+import { useUserRegistry } from '../../app/UserRegistryContext';
 import type { DisabilityType, User } from '../../types/user';
 
 interface RegisterValues {
@@ -47,6 +48,7 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { prefs, announce } = useAccessibility();
+  const { addUser } = useUserRegistry();
   const [showSummary, setShowSummary] = useState(false);
   const [pendingValues, setPendingValues] = useState<RegisterValues | null>(null);
 
@@ -67,15 +69,18 @@ export function RegisterPage() {
       id: crypto.randomUUID(),
       name: pendingValues.name,
       email: pendingValues.email,
+      role: 'user',
       disability: (pendingValues.disability as DisabilityType) || null,
       disabilityConsent: pendingValues.disabilityConsent,
       // Las preferencias guardadas son las actuales del menú (WCAG 3.3.7)
       accessibilityPreferences: prefs,
+      registeredAt: new Date().toISOString(),
     };
+    addUser(user);
     login(user);
     announce('Registro completado. Bienvenido, ' + user.name);
     navigate('/profile/accessibility');
-  }, [pendingValues, prefs, login, announce, navigate]);
+  }, [pendingValues, prefs, addUser, login, announce, navigate]);
 
   if (showSummary && pendingValues) {
     return (

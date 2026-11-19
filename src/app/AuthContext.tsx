@@ -18,6 +18,7 @@ interface AuthContextValue {
   login: (user: User) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -40,7 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, login, logout, isAuthenticated: user !== null }),
+    () => ({
+      user,
+      login,
+      logout,
+      isAuthenticated: user !== null,
+      isAdmin: user?.role === 'admin',
+    }),
     [user, login, logout]
   );
 

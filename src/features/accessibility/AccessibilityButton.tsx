@@ -16,6 +16,7 @@ import {
   useCallback,
   type KeyboardEvent,
 } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAccessibility } from '../../app/AccessibilityContext';
 import type { AccessibilityPreferences } from '../../types/accessibility';
 import styles from './AccessibilityButton.module.css';
@@ -30,12 +31,19 @@ const SCALE_LABELS: Record<Scale, string> = {
   2: '200 %',
 };
 
+/** Rutas donde el botón flotante no debe aparecer */
+const HIDDEN_ROUTES = ['/admin'];
+
 export function AccessibilityButton() {
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const { prefs, updatePref, resetPrefs, announce } = useAccessibility();
   const panelId = useId();
+
+  // No mostrar en rutas de administración
+  if (HIDDEN_ROUTES.some((r) => pathname.startsWith(r))) return null;
 
   // Devolver foco al botón al cerrar (WCAG 2.4.3)
   useEffect(() => {

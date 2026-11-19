@@ -33,15 +33,8 @@ export function AppRouter() {
                 }
               />
 
-              {/* Ruta protegida: solo administrador */}
-              <Route
-                path="/admin"
-                element={
-                  <RequireAuth role="admin">
-                    <AdminPage />
-                  </RequireAuth>
-                }
-              />
+              {/* Ruta del administrador – protección interna en AdminPage */}
+              <Route path="/admin" element={<AdminPage />} />
 
               {/* Rutas futuras: /catalog, /cart, /checkout, /service-request, /chat */}
             </Routes>

@@ -4,9 +4,6 @@
  * WCAG 2.2.1: la sesión no expira sin aviso.
  * Al hacer login las preferencias guardadas se aplican solas (AuthContext).
  *
- * Credenciales de administrador (hardcodeadas, solo para demo):
- *   Usuario: admin@compral.com
- *   Contraseña: Admin2024!
  */
 import { Link, useNavigate } from 'react-router-dom';
 import { FormField } from '../../shared/FormField';
@@ -16,12 +13,8 @@ import { useAuth } from '../../app/AuthContext';
 import { useAccessibility } from '../../app/AccessibilityContext';
 import { DEFAULT_PREFERENCES } from '../../types/accessibility';
 import type { User } from '../../types/user';
+import { useUserRegistry } from '../../app/UserRegistryContext';
 import logo from '../../assets/logo.png';
-
-// ─── Credenciales del administrador (demo / hardcodeadas) ───────────────────
-const ADMIN_EMAIL    = 'admin@compral.com';
-const ADMIN_PASSWORD = 'Admin2024!';
-// ────────────────────────────────────────────────────────────────────────────
 
 interface LoginValues {
   email: string;
@@ -41,19 +34,29 @@ export function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { announce } = useAccessibility();
+  const { authenticate } = useUserRegistry();
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const { values, handleChange, handleBlur, handleSubmit, visibleError } =
     useFormValidation<LoginValues>(INITIAL, validate);
 
-  const handleLogin = handleSubmit((v) => {
-    // ── Acceso de administrador ──────────────────────────────────────────────
-    if (v.email === ADMIN_EMAIL && v.password === ADMIN_PASSWORD) {
+  const handleLogin = handleSubmit(async (v) => {
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
+    const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD as string | undefined;
+
+    if (adminEmail && adminPassword
+      && v.email.toLowerCase() === adminEmail.toLowerCase()
+      && v.password === adminPassword) {
       const adminUser: User = {
         id: 'admin',
         name: 'Administrador',
-        email: ADMIN_EMAIL,
+        email: adminEmail,
         role: 'admin',
-        disability: null,
+        disabilities: ['no_indica'],
         disabilityConsent: false,
         accessibilityPreferences: DEFAULT_PREFERENCES,
         registeredAt: new Date().toISOString(),
@@ -63,30 +66,33 @@ export function LoginPage() {
       navigate('/admin');
       return;
     }
-
-    // ── Acceso de usuario normal (simulación) ────────────────────────────────
-    const savedPrefs = (() => {
-      try {
-        const raw = localStorage.getItem('a11y-prefs');
-        return raw ? { ...DEFAULT_PREFERENCES, ...JSON.parse(raw) } : DEFAULT_PREFERENCES;
-      } catch {
-        return DEFAULT_PREFERENCES;
+      const user = await authenticate(v.email, v.password);
+      if (!user) {
+        const message = 'Correo o contraseña incorrectos.';
+        setLoginError(message);
+        announce(message);
+        return;
       }
-    })();
-
-    const user: User = {
-      id: 'demo-user',
-      name: v.email.split('@')[0],
-      email: v.email,
-      role: 'user',
-      disability: null,
-      disabilityConsent: false,
-      accessibilityPreferences: savedPrefs,
-      registeredAt: new Date().toISOString(),
-    };
-    login(user);
-    announce('Inicio de sesión correcto. Bienvenido, ' + user.name);
-    navigate('/profile/accessibility');
+      login(user);
+      announce('Inicio de sesión correcto. Bienvenido, ' + user.name);
+      const disabilities = Array.isArray(user.disabilities) ? user.disabilities : [];
+      const needs = disabilities.filter((item) => item !== 'ninguna' && item !== 'no_indica');
+      const catalogKind = needs.length > 1
+        ? 'combinado'
+        : needs.length === 1
+          ? (needs[0] === 'visual' ? 'visual'
+            : needs[0] === 'auditiva' ? 'auditivo'
+            : needs[0] === 'motriz' ? 'motriz'
+            : 'cognitivo')
+          : 'general';
+      navigate(`/catalog/${catalogKind}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo iniciar sesión.';
+      setLoginError(message);
+      announce(message);
+    } finally {
+      setIsLoggingIn(false);
+    }
   });
 
   return (
@@ -137,9 +143,15 @@ export function LoginPage() {
             onBlur={() => handleBlur('password')}
           />
 
+          {loginError && (
+            <p className="error-msg" role="alert">
+              <span aria-hidden="true">⚠</span> {loginError}
+            </p>
+          )}
+
           <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-            <button type="submit" className="btn btn-primary">
-              Entrar
+            <button type="submit" className="btn btn-primary" disabled={isLoggingIn}>
+              {isLoggingIn ? 'Ingresando…' : 'Entrar'}
             </button>
             <Link to="/register" className="btn btn-ghost">
               Crear cuenta nueva
@@ -150,3 +162,4 @@ export function LoginPage() {
     </>
   );
 }
+import { useState } from 'react';

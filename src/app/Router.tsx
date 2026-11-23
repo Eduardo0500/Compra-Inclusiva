@@ -8,6 +8,14 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { AccessibilityProfilePage } from '../features/profile/AccessibilityProfilePage';
 import { AdminPage } from '../features/admin/AdminPage';
 import { RequireAuth } from '../shared/RequireAuth';
+import { ShopProvider } from './ShopContext';
+import { AppNav } from '../shared/AppNav';
+import { CatalogPage } from '../features/catalog/CatalogPage';
+import { CartPage } from '../features/cart/CartPage';
+import { CheckoutPage } from '../features/checkout/CheckoutPage';
+import { OrdersPage } from '../features/profile/OrdersPage';
+import { ChatPage } from '../features/chat/ChatPage';
+import { ProfilePage } from '../features/profile/ProfilePage';
 
 export function AppRouter() {
   return (
@@ -15,10 +23,10 @@ export function AppRouter() {
       <AccessibilityProvider>
         <UserRegistryProvider>
           <AuthProvider>
-            {/* Botón flotante de accesibilidad – visible en todas las rutas (WCAG 3.2.6) */}
-            <AccessibilityButton />
-
-            <Routes>
+            <ShopProvider>
+              <AppNav />
+              <AccessibilityButton />
+              <Routes>
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
@@ -35,9 +43,17 @@ export function AppRouter() {
 
               {/* Ruta del administrador – protección interna en AdminPage */}
               <Route path="/admin" element={<AdminPage />} />
-
-              {/* Rutas futuras: /catalog, /cart, /checkout, /service-request, /chat */}
-            </Routes>
+              <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+              <Route path="/catalog" element={<RequireAuth><CatalogPage /></RequireAuth>} />
+              <Route path="/catalog/:kind" element={<RequireAuth><CatalogPage /></RequireAuth>} />
+              <Route path="/cart" element={<RequireAuth><CartPage /></RequireAuth>} />
+              <Route path="/checkout" element={<RequireAuth><CheckoutPage /></RequireAuth>} />
+              <Route path="/orders" element={<RequireAuth><OrdersPage /></RequireAuth>} />
+              <Route path="/orders/:id" element={<RequireAuth><OrdersPage /></RequireAuth>} />
+              <Route path="/chat" element={<RequireAuth><ChatPage /></RequireAuth>} />
+              <Route path="*" element={<Navigate to="/login" replace />} />
+              </Routes>
+            </ShopProvider>
           </AuthProvider>
         </UserRegistryProvider>
       </AccessibilityProvider>

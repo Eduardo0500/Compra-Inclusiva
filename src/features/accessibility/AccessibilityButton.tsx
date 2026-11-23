@@ -16,7 +16,6 @@ import {
   useCallback,
   type KeyboardEvent,
 } from 'react';
-import { useLocation } from 'react-router-dom';
 import { useAccessibility } from '../../app/AccessibilityContext';
 import type { AccessibilityPreferences } from '../../types/accessibility';
 import styles from './AccessibilityButton.module.css';
@@ -31,11 +30,8 @@ const SCALE_LABELS: Record<Scale, string> = {
   2: '200 %',
 };
 
-/** Rutas donde el botón flotante no debe aparecer */
-const HIDDEN_ROUTES = ['/admin'];
 
 export function AccessibilityButton() {
-  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -83,7 +79,6 @@ export function AccessibilityButton() {
   }
 
   // No mostrar en rutas de administración — DESPUÉS de todos los hooks
-  if (HIDDEN_ROUTES.some((r) => pathname.startsWith(r))) return null;
 
   return (
     <>
@@ -123,6 +118,7 @@ export function AccessibilityButton() {
           </div>
 
           <div className={styles.panelBody}>
+            <h3>Mi configuración personalizada</h3>
             <ToggleRow
               id="pref-contrast"
               label="Alto contraste"
@@ -185,6 +181,43 @@ export function AccessibilityButton() {
               checked={prefs.simpleLanguage}
               onChange={(v) => toggle('simpleLanguage', v, v ? 'Lenguaje simple activado' : 'Lenguaje simple desactivado')}
             />
+            <h3>Otras opciones de accesibilidad</h3>
+            <ToggleRow
+              id="pref-extra-spacing"
+              label="Mayor espaciado"
+              description="Aumenta separación entre controles y líneas"
+              checked={prefs.extraSpacing}
+              onChange={(v) => toggle('extraSpacing', v, v ? 'Mayor espaciado activado' : 'Mayor espaciado desactivado')}
+            />
+            <ToggleRow
+              id="pref-read-content"
+              label="Lectura de contenido"
+              description="Permite escuchar el contenido destacado"
+              checked={prefs.readContent}
+              onChange={(v) => toggle('readContent', v, v ? 'Lectura de contenido activada' : 'Lectura de contenido desactivada')}
+            />
+            <ToggleRow
+              id="pref-keyboard-navigation"
+              label="Navegación por teclado"
+              description="Resalta rutas y controles para usar con teclado"
+              checked={prefs.keyboardNavigation}
+              onChange={(v) => toggle('keyboardNavigation', v, v ? 'Navegación por teclado activada' : 'Navegación por teclado desactivada')}
+            />
+            <div className={styles.row}>
+              <label htmlFor="pref-color-mode" className={styles.rowLabel}>
+                Opciones de color
+                <span className={styles.rowDesc}>Elige una combinación adicional</span>
+              </label>
+              <select
+                id="pref-color-mode"
+                className={styles.select}
+                value={prefs.colorMode}
+                onChange={(event) => toggle('colorMode', event.target.value as AccessibilityPreferences['colorMode'], 'Opciones de color actualizadas')}
+              >
+                <option value="normal">Colores normales</option>
+                <option value="blue-yellow">Azul y amarillo</option>
+              </select>
+            </div>
           </div>
 
           <div className={styles.panelFooter}>

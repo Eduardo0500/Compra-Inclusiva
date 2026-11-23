@@ -51,6 +51,9 @@ function applyToDOM(prefs: AccessibilityPreferences) {
   root.classList.toggle('high-contrast', prefs.highContrast);
   root.classList.toggle('large-buttons', prefs.largeButtons);
   root.classList.toggle('simple-language', prefs.simpleLanguage);
+  root.classList.toggle('extra-spacing', prefs.extraSpacing);
+  root.classList.toggle('keyboard-navigation', prefs.keyboardNavigation);
+  root.classList.toggle('blue-yellow', prefs.colorMode === 'blue-yellow');
   root.style.setProperty('--text-scale', String(prefs.textScale));
 }
 
@@ -78,7 +81,7 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadPrefs = useCallback((saved: AccessibilityPreferences) => {
-    setPrefs(saved);
+    setPrefs({ ...DEFAULT_PREFERENCES, ...saved });
   }, []);
 
   const announce = useCallback((message: string) => {

@@ -18,7 +18,7 @@ interface RegisterValues {
   email: string;
   password: string;
   confirmPassword: string;
-  disability: DisabilityType | '';
+  disabilities: DisabilityType[];
   disabilityConsent: boolean;
 }
 
@@ -27,7 +27,7 @@ const INITIAL: RegisterValues = {
   email: '',
   password: '',
   confirmPassword: '',
-  disability: '',
+  disabilities: [],
   disabilityConsent: false,
 };
 
@@ -37,7 +37,7 @@ function validate(v: RegisterValues): Partial<Record<keyof RegisterValues, strin
   if (!v.email.includes('@')) errs.email = 'Introduce un correo electrónico válido (ejemplo: usuario@correo.com).';
   if (v.password.length < 8) errs.password = 'La contraseña debe tener al menos 8 caracteres.';
   if (v.password !== v.confirmPassword) errs.confirmPassword = 'Las contraseñas no coinciden.';
-  if (v.disability && !v.disabilityConsent) {
+  if (v.disabilities.length && !v.disabilityConsent) {
     errs.disabilityConsent =
       'Para guardar la información de discapacidad debes dar tu consentimiento.';
   }
@@ -48,9 +48,11 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { prefs, announce } = useAccessibility();
-  const { addUser } = useUserRegistry();
+  const { registerUser } = useUserRegistry();
   const [showSummary, setShowSummary] = useState(false);
   const [pendingValues, setPendingValues] = useState<RegisterValues | null>(null);
+  const [registerError, setRegisterError] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const { values, handleChange, handleBlur, handleSubmit, visibleError } =
     useFormValidation<RegisterValues>(INITIAL, validate);
@@ -63,24 +65,37 @@ export function RegisterPage() {
   });
 
   // Paso 2: confirmar definitivamente
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback(async () => {
     if (!pendingValues) return;
+    setRegisterError('');
+    setIsRegistering(true);
     const user: User = {
-      id: crypto.randomUUID(),
+      id: typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `user-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       name: pendingValues.name,
       email: pendingValues.email,
       role: 'user',
-      disability: (pendingValues.disability as DisabilityType) || null,
+      disabilities: pendingValues.disabilities,
+      disability: pendingValues.disabilities[0] ?? null,
       disabilityConsent: pendingValues.disabilityConsent,
       // Las preferencias guardadas son las actuales del menú (WCAG 3.3.7)
       accessibilityPreferences: prefs,
       registeredAt: new Date().toISOString(),
     };
-    addUser(user);
-    login(user);
-    announce('Registro completado. Bienvenido, ' + user.name);
-    navigate('/profile/accessibility');
-  }, [pendingValues, prefs, addUser, login, announce, navigate]);
+    try {
+      const registered = await registerUser(user, pendingValues.password);
+      login(registered);
+      announce('Registro completado. Bienvenido, ' + user.name);
+      navigate('/catalog');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo crear la cuenta.';
+      setRegisterError(message);
+      announce(message);
+    } finally {
+      setIsRegistering(false);
+    }
+  }, [pendingValues, prefs, registerUser, login, announce, navigate]);
 
   if (showSummary && pendingValues) {
     return (
@@ -97,12 +112,17 @@ export function RegisterPage() {
               <SummaryRow label="Correo" value={pendingValues.email} />
               <SummaryRow
                 label="Discapacidad declarada"
-                value={pendingValues.disability || 'No declarada'}
+                value={pendingValues.disabilities.join(', ') || 'No declarada'}
               />
             </dl>
+            {registerError && (
+              <p className="error-msg" role="alert" style={{ marginTop: '1rem' }}>
+                <span aria-hidden="true">⚠</span> {registerError}
+              </p>
+            )}
             <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
-              <button className="btn btn-primary" onClick={handleConfirm}>
-                Confirmar y crear cuenta
+              <button className="btn btn-primary" onClick={handleConfirm} disabled={isRegistering}>
+                {isRegistering ? 'Creando cuenta…' : 'Confirmar y crear cuenta'}
               </button>
               <button className="btn btn-ghost" onClick={() => setShowSummary(false)}>
                 Volver y editar
@@ -178,25 +198,41 @@ export function RegisterPage() {
           />
 
           {/* Información de discapacidad – opcional, con consentimiento */}
-          <FormField
-            as="select"
-            label="Tipo de discapacidad (opcional)"
-            value={values.disability}
-            error={visibleError('disability')}
-            onChange={(e) =>
-              handleChange('disability', e.target.value as DisabilityType | '')
-            }
-            hint="Esta información personaliza tu experiencia de accesibilidad. Es completamente opcional."
-          >
-            <option value="">Prefiero no indicarlo</option>
-            <option value="visual">Visual</option>
-            <option value="auditiva">Auditiva</option>
-            <option value="motriz">Motriz</option>
-            <option value="cognitiva">Cognitiva</option>
-          </FormField>
+          <fieldset className="field">
+            <legend>Discapacidades (puedes elegir varias)</legend>
+            {([
+              ['visual', 'Discapacidad visual'],
+              ['auditiva', 'Discapacidad auditiva'],
+              ['motriz', 'Discapacidad motriz'],
+              ['cognitiva', 'Discapacidad cognitiva'],
+              ['ninguna', 'Sin discapacidad'],
+              ['no_indica', 'Prefiero no indicarlo'],
+            ] as [DisabilityType, string][]).map(([value, label]) => (
+              <label key={value} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minHeight: 44 }}>
+                <input
+                  type="checkbox"
+                  checked={values.disabilities.includes(value)}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    if (checked && (value === 'ninguna' || value === 'no_indica')) {
+                      handleChange('disabilities', [value]);
+                    } else if (checked) {
+                      handleChange('disabilities', [
+                        ...values.disabilities.filter((item) => item !== 'ninguna' && item !== 'no_indica'),
+                        value,
+                      ]);
+                    } else {
+                      handleChange('disabilities', values.disabilities.filter((item) => item !== value));
+                    }
+                  }}
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
 
           {/* Consentimiento: solo visible si se seleccionó discapacidad */}
-          {values.disability && (
+          {values.disabilities.some((item) => item !== 'ninguna' && item !== 'no_indica') && (
             <div className="field">
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
                 <input

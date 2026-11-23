@@ -17,6 +17,10 @@ export interface AccessibilityPreferences {
   visualAlerts: boolean;
   /** 3.1.5 – Lenguaje simple */
   simpleLanguage: boolean;
+  extraSpacing: boolean;
+  readContent: boolean;
+  keyboardNavigation: boolean;
+  colorMode: 'normal' | 'blue-yellow';
 }
 
 export const DEFAULT_PREFERENCES: AccessibilityPreferences = {
@@ -27,4 +31,8 @@ export const DEFAULT_PREFERENCES: AccessibilityPreferences = {
   signLanguage: false,
   visualAlerts: false,
   simpleLanguage: false,
+  extraSpacing: false,
+  readContent: false,
+  keyboardNavigation: false,
+  colorMode: 'normal',
 };

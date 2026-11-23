@@ -8,10 +8,13 @@ import {
   useContext,
   useMemo,
   useState,
+  useEffect,
   type ReactNode,
 } from 'react';
 import type { User } from '../types/user';
 import { useAccessibility } from './AccessibilityContext';
+import { DEFAULT_PREFERENCES } from '../types/accessibility';
+import { useUserRegistry } from './UserRegistryContext';
 
 interface AuthContextValue {
   user: User | null;
@@ -19,6 +22,7 @@ interface AuthContextValue {
   logout: () => void;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  updateUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -36,7 +40,8 @@ function readSession(): User | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(readSession);
-  const { loadPrefs } = useAccessibility();
+  const { loadPrefs, prefs } = useAccessibility();
+  const { updateUser: updateRegistryUser } = useUserRegistry();
 
   const login = useCallback(
     (u: User) => {
@@ -54,7 +59,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     sessionStorage.removeItem(SESSION_KEY);
     setUser(null);
-  }, []);
+    loadPrefs(DEFAULT_PREFERENCES);
+  }, [loadPrefs]);
+
+  const updateUser = useCallback((next: User) => {
+    updateRegistryUser(next);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
+    setUser(next);
+    loadPrefs(next.accessibilityPreferences);
+  }, [updateRegistryUser, loadPrefs]);
+
+  useEffect(() => {
+    if (!user) return;
+    const next = { ...user, accessibilityPreferences: prefs };
+    updateRegistryUser(next);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
+  }, [prefs, user?.id, updateRegistryUser]);
 
   const value = useMemo(
     () => ({
@@ -63,8 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       isAuthenticated: user !== null,
       isAdmin: user?.role === 'admin',
+      updateUser,
     }),
-    [user, login, logout]
+    [user, login, logout, updateUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -62,3 +62,17 @@ src/
 | 3.3.8 Autenticación accesible | Sin CAPTCHA; `autocomplete` obligatorio |
 | 4.1.2 Nombre, función, valor | `role="switch"` + `aria-checked` en toggles |
 | 4.1.3 Mensajes de estado | `announce()` vía `aria-live="polite"` |
+
+## Configuración externa pendiente
+
+La autenticación y los datos se mantienen en `localStorage`/`sessionStorage` como solución
+demostrativa. Para habilitar el administrador, crea un archivo `.env.local` con:
+
+```text
+VITE_ADMIN_EMAIL=administrador@tu-dominio.com
+VITE_ADMIN_PASSWORD=contraseña-segura-generada
+```
+
+No publiques estas variables en un repositorio. La integración de la pasarela de pagos y
+la API real del Asistente Inclusivo deben hacerse desde un backend; el proyecto actual
+incluye solamente el modo demostración claramente identificado y no procesa pagos.

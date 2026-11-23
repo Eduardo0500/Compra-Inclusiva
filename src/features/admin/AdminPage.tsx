@@ -15,6 +15,7 @@ const DISABILITY_LABELS: Record<string, string> = {
   motriz: 'Motriz',
   cognitiva: 'Cognitiva',
   ninguna: 'Ninguna',
+  no_indica: 'Prefiere no indicarlo',
 };
 
 function prefsResumen(p: AccessibilityPreferences): string {
@@ -58,7 +59,7 @@ export function AdminPage() {
     const coincideBusqueda =
       u.name.toLowerCase().includes(busqueda.toLowerCase()) ||
       u.email.toLowerCase().includes(busqueda.toLowerCase());
-    const coincideDisc = !filtroDisc || u.disability === filtroDisc;
+    const coincideDisc = !filtroDisc || u.disabilities.includes(filtroDisc as never);
     return coincideBusqueda && coincideDisc;
   });
 
@@ -96,7 +97,7 @@ export function AdminPage() {
         {/* TARJETAS RESUMEN */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
           <Tarjeta titulo="Total usuarios" valor={users.length} />
-          <Tarjeta titulo="Con discapacidad" valor={users.filter(u => u.disability && u.disability !== 'ninguna').length} />
+          <Tarjeta titulo="Con discapacidad" valor={users.filter(u => u.disabilities.some(d => d !== 'ninguna' && d !== 'no_indica')).length} />
           <Tarjeta titulo="Con consentimiento" valor={users.filter(u => u.disabilityConsent).length} />
           <Tarjeta titulo="Alto contraste" valor={users.filter(u => u.accessibilityPreferences.highContrast).length} />
         </div>
@@ -199,7 +200,7 @@ function Tarjeta({ titulo, valor }: { titulo: string; valor: number }) {
 }
 
 function FilaUsuario({ user, zebra, onEliminar }: { user: User; zebra: boolean; onEliminar: () => void }) {
-  const disc = user.disability ? (DISABILITY_LABELS[user.disability] ?? user.disability) : '—';
+  const disc = user.disabilities.map((item) => DISABILITY_LABELS[item] ?? item).join(', ') || '—';
   const prefs = prefsResumen(user.accessibilityPreferences);
 
   return (
@@ -207,7 +208,7 @@ function FilaUsuario({ user, zebra, onEliminar }: { user: User; zebra: boolean; 
       <td style={{ padding: '0.65rem 1rem', fontWeight: 600 }}>{user.name}</td>
       <td style={{ padding: '0.65rem 1rem', color: '#444' }}>{user.email}</td>
       <td style={{ padding: '0.65rem 1rem' }}>
-        {user.disability && user.disability !== 'ninguna' ? (
+        {user.disabilities.some((item) => item !== 'ninguna' && item !== 'no_indica') ? (
           <span style={{
             background: '#e8f0fe', color: '#1a56cc',
             borderRadius: 999, padding: '0.2rem 0.65rem',

@@ -1,19 +1,15 @@
-/**
- * LoginPage – inicio de sesión accesible.
- * WCAG 3.3.8: sin CAPTCHA cognitivo, autocomplete obligatorio.
- * WCAG 2.2.1: la sesión no expira sin aviso.
- * Al hacer login las preferencias guardadas se aplican solas (AuthContext).
- *
- */
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FormField } from '../../shared/FormField';
 import { SkipLink } from '../../shared/SkipLink';
 import { useFormValidation } from './useFormValidation';
 import { useAuth } from '../../app/AuthContext';
 import { useAccessibility } from '../../app/AccessibilityContext';
+import { useUserRegistry } from '../../app/UserRegistryContext';
+import { CATALOG_KIND_LABELS, catalogKindForUser, needsLabel, needsForUser } from '../../services/identity';
+import { DEMO_PASSWORD } from '../../services/password';
 import { DEFAULT_PREFERENCES } from '../../types/accessibility';
 import type { User } from '../../types/user';
-import { useUserRegistry } from '../../app/UserRegistryContext';
 import logo from '../../assets/logo.png';
 
 interface LoginValues {
@@ -23,11 +19,11 @@ interface LoginValues {
 
 const INITIAL: LoginValues = { email: '', password: '' };
 
-function validate(v: LoginValues): Partial<Record<keyof LoginValues, string>> {
-  const errs: Partial<Record<keyof LoginValues, string>> = {};
-  if (!v.email.includes('@')) errs.email = 'Introduce un correo electrónico válido.';
-  if (!v.password) errs.password = 'La contraseña no puede estar vacía.';
-  return errs;
+function validate(values: LoginValues): Partial<Record<keyof LoginValues, string>> {
+  const errors: Partial<Record<keyof LoginValues, string>> = {};
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) errors.email = 'Escribe un correo válido.';
+  if (!values.password) errors.password = 'Escribe tu contraseña.';
+  return errors;
 }
 
 export function LoginPage() {
@@ -36,130 +32,96 @@ export function LoginPage() {
   const { announce } = useAccessibility();
   const { authenticate } = useUserRegistry();
   const [loginError, setLoginError] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const { values, handleChange, handleBlur, handleSubmit, visibleError } =
     useFormValidation<LoginValues>(INITIAL, validate);
 
-  const handleLogin = handleSubmit(async (v) => {
+  const handleLogin = handleSubmit(async (formValues) => {
     setLoginError('');
-    setIsLoggingIn(true);
+    setBusy(true);
     try {
-    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-    const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD as string | undefined;
+      const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+      const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;
+      if (adminEmail && adminPassword
+        && formValues.email.trim().toLocaleLowerCase('es') === adminEmail.toLocaleLowerCase('es')
+        && formValues.password === adminPassword) {
+        const admin: User = {
+          id: 'admin', name: 'Administrador', email: adminEmail, role: 'admin',
+          disabilities: ['no_indica'], disabilityConsent: false,
+          accessibilityPreferences: DEFAULT_PREFERENCES,
+          registeredAt: new Date().toISOString(),
+        };
+        login(admin);
+        announce('Acceso de administrador correcto.');
+        navigate('/admin');
+        return;
+      }
 
-    if (adminEmail && adminPassword
-      && v.email.toLowerCase() === adminEmail.toLowerCase()
-      && v.password === adminPassword) {
-      const adminUser: User = {
-        id: 'admin',
-        name: 'Administrador',
-        email: adminEmail,
-        role: 'admin',
-        disabilities: ['no_indica'],
-        disabilityConsent: false,
-        accessibilityPreferences: DEFAULT_PREFERENCES,
-        registeredAt: new Date().toISOString(),
-      };
-      login(adminUser);
-      announce('Acceso de administrador correcto. Bienvenido.');
-      navigate('/admin');
-      return;
-    }
-      const user = await authenticate(v.email, v.password);
+      const user = await authenticate(formValues.email, formValues.password);
       if (!user) {
-        const message = 'Correo o contraseña incorrectos.';
+        const message = 'Correo o contraseña incorrectos. Revisa los datos e inténtalo otra vez.';
         setLoginError(message);
         announce(message);
         return;
       }
+      const kind = catalogKindForUser(user);
+      const needs = needsForUser(user);
       login(user);
-      announce('Inicio de sesión correcto. Bienvenido, ' + user.name);
-      const disabilities = Array.isArray(user.disabilities) ? user.disabilities : [];
-      const needs = disabilities.filter((item) => item !== 'ninguna' && item !== 'no_indica');
-      const catalogKind = needs.length > 1
-        ? 'combinado'
-        : needs.length === 1
-          ? (needs[0] === 'visual' ? 'visual'
-            : needs[0] === 'auditiva' ? 'auditivo'
-            : needs[0] === 'motriz' ? 'motriz'
-            : 'cognitivo')
-          : 'general';
-      navigate(`/catalog/${catalogKind}`);
+      announce(`Inicio de sesión correcto. Necesidades: ${needsLabel(needs)}. Catálogo asignado: ${CATALOG_KIND_LABELS[kind]}.`);
+      navigate(`/catalog/${kind}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo iniciar sesión.';
       setLoginError(message);
       announce(message);
     } finally {
-      setIsLoggingIn(false);
+      setBusy(false);
     }
   });
 
   return (
     <>
       <SkipLink />
-      <main id="main-content" className="page">
-
-        {/* Logo del proyecto (WCAG 1.1.1: texto alternativo descriptivo) */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-          <img
-            src={logo}
-            alt="CompraFácil Inclusiva – carrito de compras con personas con discapacidad, adulto mayor y niño"
-            style={{ width: 160, height: 160, objectFit: 'contain' }}
-          />
+      <main id="main-content" className="page" tabIndex={-1}>
+        <div className="login-hero">
+          <img src={logo} alt="CompraFácil Inclusiva: carrito de compras con personas diversas" />
+          <h1>Iniciar sesión</h1>
+          <p className="muted">Entrarás directamente al catálogo adaptado a tus necesidades.</p>
         </div>
-
-        <h1 style={{ textAlign: 'center' }}>Iniciar sesión</h1>
-        <p style={{ marginTop: '0.25rem', marginBottom: '1.5rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-          Los campos marcados con <span aria-hidden="true">*</span>
-          <span className="sr-only">asterisco</span> son obligatorios.
-        </p>
-
-        <form
-          noValidate
-          onSubmit={handleLogin}
-          aria-label="Formulario de inicio de sesión"
-          className="card"
-        >
-          <FormField
-            label="Correo electrónico"
-            type="email"
-            autoComplete="email"
-            required
-            value={values.email}
-            error={visibleError('email')}
-            onChange={(e) => handleChange('email', e.target.value)}
-            onBlur={() => handleBlur('email')}
-          />
-
-          <FormField
-            label="Contraseña"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={values.password}
+        <form noValidate onSubmit={handleLogin} aria-label="Formulario de inicio de sesión" className="card stack">
+          <FormField label="Correo electrónico" type="email" autoComplete="email" required
+            value={values.email} error={visibleError('email')}
+            onChange={(event) => handleChange('email', event.target.value)}
+            onBlur={() => handleBlur('email')} />
+          <FormField label="Contraseña" type="password" autoComplete="current-password" required
+            hint="Sin CAPTCHA. Puedes usar el gestor de contraseñas." value={values.password}
             error={visibleError('password')}
-            onChange={(e) => handleChange('password', e.target.value)}
-            onBlur={() => handleBlur('password')}
-          />
-
+            onChange={(event) => handleChange('password', event.target.value)}
+            onBlur={() => handleBlur('password')} />
           {loginError && (
-            <p className="error-msg" role="alert">
-              <span aria-hidden="true">⚠</span> {loginError}
-            </p>
+            <p className="error-msg" role="alert"><span aria-hidden="true">⚠</span> {loginError}</p>
           )}
-
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-            <button type="submit" className="btn btn-primary" disabled={isLoggingIn}>
-              {isLoggingIn ? 'Ingresando…' : 'Entrar'}
+          <div className="actions">
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              {busy ? 'Identificando tu perfil…' : 'Entrar a mi catálogo'}
             </button>
-            <Link to="/register" className="btn btn-ghost">
-              Crear cuenta nueva
-            </Link>
+            <Link to="/register" className="btn btn-secondary">Crear cuenta</Link>
           </div>
         </form>
+        <aside className="demo-box" aria-labelledby="demo-title">
+          <h2 id="demo-title">Cuentas de demostración</h2>
+          <p>Prueba cada catálogo con la contraseña <strong>{DEMO_PASSWORD}</strong>:</p>
+          <ul>
+            <li>maria@ejemplo.com · catálogo visual</li>
+            <li>carlos@ejemplo.com · catálogo auditivo</li>
+            <li>ana@ejemplo.com · catálogo motriz</li>
+            <li>pedro@ejemplo.com · catálogo cognitivo</li>
+            <li>elena@ejemplo.com · catálogo combinado</li>
+            <li>laura@ejemplo.com · catálogo general</li>
+          </ul>
+          <p className="muted">Los pagos y el asistente funcionan en modo demostración; no se procesan pagos reales.</p>
+        </aside>
       </main>
     </>
   );
 }
-import { useState } from 'react';

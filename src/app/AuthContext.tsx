@@ -1,20 +1,9 @@
-/**
- * AuthContext – gestión de sesión.
- * Persiste el usuario en sessionStorage para sobrevivir navegaciones internas.
- */
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  useEffect,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { DEFAULT_PREFERENCES } from '../types/accessibility';
 import type { User } from '../types/user';
 import { useAccessibility } from './AccessibilityContext';
-import { DEFAULT_PREFERENCES } from '../types/accessibility';
 import { useUserRegistry } from './UserRegistryContext';
+import { safeSession, STORAGE_KEYS } from '../services/storage';
 
 interface AuthContextValue {
   user: User | null;
@@ -27,64 +16,61 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const SESSION_KEY = 'session-user';
-
-function readSession(): User | null {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as User) : null;
-  } catch {
-    return null;
-  }
+function readSessionUserId(): string | null {
+  return safeSession.get<string | null>(STORAGE_KEYS.sessionUserId, null);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(readSession);
+  const [userId, setUserId] = useState<string | null>(readSessionUserId);
+  const { users, addUser, updateUser: updateRegistryUser } = useUserRegistry();
   const { loadPrefs, prefs } = useAccessibility();
-  const { updateUser: updateRegistryUser } = useUserRegistry();
+  const syncedPrefs = useRef<string>('');
+  const initialised = useRef(false);
 
-  const login = useCallback(
-    (u: User) => {
-      // Persistir en sessionStorage ANTES de setUser para que cualquier
-      // componente que monte inmediatamente después ya lo pueda leer
-      try {
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(u));
-      } catch { /* noop */ }
-      setUser(u);
-      loadPrefs(u.accessibilityPreferences);
-    },
-    [loadPrefs]
-  );
+  const user = useMemo(() => users.find((item) => item.id === userId) ?? null, [users, userId]);
+
+  const applyUserPrefs = useCallback((next: User) => {
+    const saved = { ...DEFAULT_PREFERENCES, ...next.accessibilityPreferences };
+    syncedPrefs.current = JSON.stringify(saved);
+    loadPrefs(saved);
+  }, [loadPrefs]);
+
+  const login = useCallback((next: User) => {
+    if (!users.some((item) => item.id === next.id)) addUser(next);
+    safeSession.set(STORAGE_KEYS.sessionUserId, next.id);
+    setUserId(next.id);
+    applyUserPrefs(next);
+  }, [users, addUser, applyUserPrefs]);
 
   const logout = useCallback(() => {
-    sessionStorage.removeItem(SESSION_KEY);
-    setUser(null);
+    safeSession.remove(STORAGE_KEYS.sessionUserId);
+    setUserId(null);
+    syncedPrefs.current = '';
     loadPrefs(DEFAULT_PREFERENCES);
   }, [loadPrefs]);
 
   const updateUser = useCallback((next: User) => {
     updateRegistryUser(next);
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
-    setUser(next);
-    loadPrefs(next.accessibilityPreferences);
-  }, [updateRegistryUser, loadPrefs]);
+    applyUserPrefs(next);
+  }, [updateRegistryUser, applyUserPrefs]);
 
   useEffect(() => {
-    if (!user) return;
-    const next = { ...user, accessibilityPreferences: prefs };
-    updateRegistryUser(next);
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
-  }, [prefs, user?.id, updateRegistryUser]);
+    if (!user || initialised.current) return;
+    initialised.current = true;
+    syncedPrefs.current = JSON.stringify(prefs);
+    loadPrefs({ ...DEFAULT_PREFERENCES, ...user.accessibilityPreferences });
+  }, [user, prefs, loadPrefs]);
+
+  useEffect(() => {
+    if (!user || !initialised.current) return;
+    const current = JSON.stringify(prefs);
+    if (current === syncedPrefs.current) return;
+    syncedPrefs.current = current;
+    updateRegistryUser({ ...user, accessibilityPreferences: prefs });
+  }, [prefs, user, updateRegistryUser]);
 
   const value = useMemo(
-    () => ({
-      user,
-      login,
-      logout,
-      isAuthenticated: user !== null,
-      isAdmin: user?.role === 'admin',
-      updateUser,
-    }),
+    () => ({ user, login, logout, isAuthenticated: user !== null, isAdmin: user?.role === 'admin', updateUser }),
     [user, login, logout, updateUser]
   );
 
@@ -95,4 +81,8 @@ export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
   return ctx;
+}
+
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
 }

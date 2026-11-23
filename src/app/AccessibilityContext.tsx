@@ -1,49 +1,25 @@
-/**
- * AccessibilityContext
- * ─────────────────────────────────────────────────────────────────────────────
- * Fuente única de verdad para las preferencias de accesibilidad.
- * - Persiste en localStorage (clave "a11y-prefs").
- * - Aplica las clases CSS y variables CSS en <html> para que toda la app reaccione.
- * - Expone announce() para cumplir WCAG 4.1.3 sin mover el foco.
- */
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
-import {
-  DEFAULT_PREFERENCES,
-  type AccessibilityPreferences,
-} from '../types/accessibility';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { DEFAULT_PREFERENCES, type AccessibilityPreferences } from '../types/accessibility';
+import { safeStorage, STORAGE_KEYS } from '../services/storage';
+
+type Scale = AccessibilityPreferences['textScale'];
+const SCALES: Scale[] = [1, 1.25, 1.5, 1.75, 2];
 
 interface AccessibilityContextValue {
   prefs: AccessibilityPreferences;
-  updatePref: <K extends keyof AccessibilityPreferences>(
-    key: K,
-    value: AccessibilityPreferences[K]
-  ) => void;
+  updatePref: <K extends keyof AccessibilityPreferences>(key: K, value: AccessibilityPreferences[K]) => void;
+  applyPrefs: (next: AccessibilityPreferences) => void;
   resetPrefs: () => void;
-  /** Carga preferencias desde el perfil guardado (se llama al hacer login) */
+  increaseText: () => void;
+  decreaseText: () => void;
   loadPrefs: (saved: AccessibilityPreferences) => void;
-  /** Anuncia un mensaje a lectores de pantalla sin mover el foco (WCAG 4.1.3) */
   announce: (message: string) => void;
 }
 
 const AccessibilityContext = createContext<AccessibilityContextValue | null>(null);
 
-const STORAGE_KEY = 'a11y-prefs';
-
-function readStorage(): AccessibilityPreferences {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...DEFAULT_PREFERENCES, ...JSON.parse(raw) } : DEFAULT_PREFERENCES;
-  } catch {
-    return DEFAULT_PREFERENCES;
-  }
+function readPrefs(): AccessibilityPreferences {
+  return { ...DEFAULT_PREFERENCES, ...safeStorage.get<Partial<AccessibilityPreferences>>(STORAGE_KEYS.preferences, {}) };
 }
 
 function applyToDOM(prefs: AccessibilityPreferences) {
@@ -53,41 +29,57 @@ function applyToDOM(prefs: AccessibilityPreferences) {
   root.classList.toggle('simple-language', prefs.simpleLanguage);
   root.classList.toggle('extra-spacing', prefs.extraSpacing);
   root.classList.toggle('keyboard-navigation', prefs.keyboardNavigation);
+  root.classList.toggle('visual-alerts', prefs.visualAlerts);
   root.classList.toggle('blue-yellow', prefs.colorMode === 'blue-yellow');
   root.style.setProperty('--text-scale', String(prefs.textScale));
 }
 
 export function AccessibilityProvider({ children }: { children: ReactNode }) {
-  const [prefs, setPrefs] = useState<AccessibilityPreferences>(readStorage);
+  const [prefs, setPrefs] = useState<AccessibilityPreferences>(readPrefs);
 
-  // Aplicar al DOM cada vez que cambien las preferencias
   useEffect(() => {
     applyToDOM(prefs);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+    safeStorage.set(STORAGE_KEYS.preferences, prefs);
   }, [prefs]);
 
   const updatePref = useCallback(
-    <K extends keyof AccessibilityPreferences>(
-      key: K,
-      value: AccessibilityPreferences[K]
-    ) => {
+    <K extends keyof AccessibilityPreferences>(key: K, value: AccessibilityPreferences[K]) => {
       setPrefs((prev) => ({ ...prev, [key]: value }));
     },
     []
   );
 
-  const resetPrefs = useCallback(() => {
-    setPrefs(DEFAULT_PREFERENCES);
+  const applyPrefs = useCallback((next: AccessibilityPreferences) => {
+    setPrefs({ ...DEFAULT_PREFERENCES, ...next });
   }, []);
 
+  const resetPrefs = useCallback(() => setPrefs({ ...DEFAULT_PREFERENCES }), []);
+
+  const changeScale = useCallback((direction: 1 | -1) => {
+    setPrefs((prev) => {
+      const index = SCALES.indexOf(prev.textScale);
+      const nextIndex = Math.min(SCALES.length - 1, Math.max(0, index + direction));
+      return { ...prev, textScale: SCALES[nextIndex] };
+    });
+  }, []);
+
+  const increaseText = useCallback(() => changeScale(1), [changeScale]);
+  const decreaseText = useCallback(() => changeScale(-1), [changeScale]);
   const loadPrefs = useCallback((saved: AccessibilityPreferences) => {
     setPrefs({ ...DEFAULT_PREFERENCES, ...saved });
   }, []);
 
   const announce = useCallback((message: string) => {
-    const region = document.getElementById('live-region');
-    if (!region) return;
-    // Limpiar primero para que el lector anuncie incluso el mismo texto dos veces
+    let region = document.getElementById('live-region');
+    if (!region) {
+      region = document.createElement('div');
+      region.id = 'live-region';
+      region.className = 'sr-only';
+      region.setAttribute('role', 'status');
+      region.setAttribute('aria-live', 'polite');
+      region.setAttribute('aria-atomic', 'true');
+      document.body.appendChild(region);
+    }
     region.textContent = '';
     requestAnimationFrame(() => {
       region.textContent = message;
@@ -95,15 +87,11 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ prefs, updatePref, resetPrefs, loadPrefs, announce }),
-    [prefs, updatePref, resetPrefs, loadPrefs, announce]
+    () => ({ prefs, updatePref, applyPrefs, resetPrefs, increaseText, decreaseText, loadPrefs, announce }),
+    [prefs, updatePref, applyPrefs, resetPrefs, increaseText, decreaseText, loadPrefs, announce]
   );
 
-  return (
-    <AccessibilityContext.Provider value={value}>
-      {children}
-    </AccessibilityContext.Provider>
-  );
+  return <AccessibilityContext.Provider value={value}>{children}</AccessibilityContext.Provider>;
 }
 
 export function useAccessibility(): AccessibilityContextValue {

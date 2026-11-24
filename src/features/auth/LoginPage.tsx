@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FormField } from '../../shared/FormField';
 import { SkipLink } from '../../shared/SkipLink';
 import { useFormValidation } from './useFormValidation';
@@ -28,14 +28,19 @@ function validate(values: LoginValues): Partial<Record<keyof LoginValues, string
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { state } = useLocation();
   const { login } = useAuth();
   const { announce } = useAccessibility();
   const { authenticate } = useUserRegistry();
   const [loginError, setLoginError] = useState('');
   const [busy, setBusy] = useState(false);
+  const credentials = (state ?? {}) as Partial<LoginValues>;
 
   const { values, handleChange, handleBlur, handleSubmit, visibleError } =
-    useFormValidation<LoginValues>(INITIAL, validate);
+    useFormValidation<LoginValues>(
+      { email: credentials.email ?? INITIAL.email, password: credentials.password ?? INITIAL.password },
+      validate
+    );
 
   const handleLogin = handleSubmit(async (formValues) => {
     setLoginError('');

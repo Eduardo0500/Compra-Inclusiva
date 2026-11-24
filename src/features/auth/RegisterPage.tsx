@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FormField } from '../../shared/FormField';
 import { SkipLink } from '../../shared/SkipLink';
 import { useAccessibility } from '../../app/AccessibilityContext';
@@ -116,7 +116,7 @@ export function RegisterPage() {
     try {
       await registerUser(user, values.password);
       navigate('/register/confirmation', {
-        state: { name: user.name, email: user.email, catalogKind },
+        state: { name: user.name, email: user.email, password: values.password, catalogKind },
         replace: true,
       });
     } catch (error) {
@@ -263,16 +263,55 @@ export function RegisterPage() {
   );
 }
 
+interface ConfirmationState {
+  name?: string;
+  email?: string;
+  password?: string;
+}
+
 export function RegistrationConfirmationPage() {
+  const { state } = useLocation();
+  const credentials = (state ?? {}) as ConfirmationState;
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <>
       <SkipLink />
       <main id="main-content" className="page" tabIndex={-1}>
         <div className="card stack" role="status">
           <h1>Registro completado</h1>
-          <p>Tu cuenta se creó correctamente. Ahora inicia sesión para entrar a tu catálogo personalizado.</p>
+          <p>Tu cuenta se creó correctamente. Estas son las credenciales que debes usar para entrar:</p>
+          {credentials.email ? (
+            <dl className="summary-list">
+              <div><dt>Nombre</dt><dd>{credentials.name || 'Tu cuenta'}</dd></div>
+              <div><dt>Correo electrónico</dt><dd>{credentials.email}</dd></div>
+              <div>
+                <dt>Contraseña</dt>
+                <dd>
+                  <input
+                    aria-label="Contraseña creada"
+                    readOnly
+                    type={showPassword ? 'text' : 'password'}
+                    value={credentials.password ?? ''}
+                  />
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="muted">Vuelve a iniciar sesión con el correo y la contraseña que elegiste.</p>
+          )}
+          <p className="muted">Guarda estos datos. Tu contraseña no se muestra en tu perfil.</p>
+          <div className="actions">
+            {credentials.password && (
+              <button className="btn btn-ghost" aria-pressed={showPassword} onClick={() => setShowPassword((value) => !value)}>
+                {showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              </button>
+            )}
+            <Link className="btn btn-primary" to="/login" state={credentials}>
+              Ir a iniciar sesión
+            </Link>
+          </div>
           <p className="muted">Tus preferencias y necesidades quedarán cargadas automáticamente.</p>
-          <Link className="btn btn-primary" to="/login">Ir a iniciar sesión</Link>
         </div>
       </main>
     </>

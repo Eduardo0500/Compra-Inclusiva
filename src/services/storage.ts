@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   users: 'user-registry',
   orders: 'shop-orders',
   preferences: 'a11y-prefs',
+  a11yPosition: 'a11y-panel-position',
   sessionUserId: 'session-user-id',
 } as const;
 

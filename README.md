@@ -38,7 +38,7 @@ Todas usan la contraseña `Demo1234!`:
 | `elena@ejemplo.com` | Visual + motriz | `/catalog/combinado` |
 | `laura@ejemplo.com` | Prefirió no indicarlo | `/catalog/general` |
 
-También puedes registrar una cuenta nueva. El registro pregunta necesidades con consentimiento explícito, muestra una vista previa y redirige al catálogo correcto tras iniciar sesión.
+También puedes registrar una cuenta nueva. El registro pregunta necesidades con consentimiento explícito, muestra una vista previa y, al terminar, muestra el correo y la contraseña creados para que puedas iniciar sesión sin dudas. Solo se guarda el hash PBKDF2 de la contraseña, nunca el texto plano.
 
 ## Flujo implementado
 
@@ -75,6 +75,8 @@ El botón flotante «Opciones de accesibilidad» y la página de perfil permiten
 - Subtítulos, lengua de señas y alertas visuales.
 - Lenguaje simple, lectura de contenido y navegación por teclado.
 - Aplicación automática de recomendaciones según necesidades declaradas, separando «Mi configuración personalizada» de «Otras opciones de accesibilidad».
+
+El panel flotante se puede arrastrar desde su encabezado o mover con las flechas del botón «Mover panel»; recuerda su posición y puede volver al centro con «Centrar botón». Incluye accesos rápidos (texto y contraste), buscador de herramientas y el atajo `Alt + A` para abrirlo o cerrarlo.
 
 Se conservan: enlace de salto, foco visible, `role="status"`/`role="log"`, mensajes con icono además de color, nombres ARIA, cierre con Escape y devolución del foco.
 

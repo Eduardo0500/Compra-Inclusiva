@@ -18,23 +18,37 @@ async function derive(password: string, salt: Uint8Array, iterations: number): P
 export async function hashPassword(password: string): Promise<string> {
   try {
     const salt = crypto.getRandomValues(new Uint8Array(16));
-    return `pbkdf2$${toHex(salt)}$$${ITERATIONS}$${await derive(password, salt, ITERATIONS)}`;
+    return `pbkdf2$${toHex(salt)}$${ITERATIONS}$${await derive(password, salt, ITERATIONS)}`;
   } catch {
     return `demo-fallback$${toHex(new TextEncoder().encode(password).slice(0, 16))}`;
   }
 }
 
+function parsePbkdf2(stored: string): { salt: Uint8Array; iterations: number; hash: string } | null {
+  const parts = stored.split('$');
+  const legacy = parts.length === 5 && parts[2] === '';
+  const saltHex = parts[1];
+  const iterationsRaw = legacy ? parts[3] : parts[2];
+  const hash = legacy ? parts[4] : parts[3];
+  if (!saltHex || !iterationsRaw || !hash) return null;
+  const iterations = Number(iterationsRaw);
+  if (!Number.isInteger(iterations) || iterations <= 0) return null;
+  const salt = new Uint8Array(saltHex.match(/.{2}/g)?.map((byte) => parseInt(byte, 16)) ?? []);
+  if (!salt.length || salt.some(Number.isNaN)) return null;
+  return { salt, iterations, hash };
+}
+
 export async function verifyPassword(password: string, stored: string | undefined): Promise<boolean> {
   if (!stored) return false;
   if (stored.startsWith('pbkdf2$')) {
-    const parts = stored.split('$');
-    const saltHex = parts[1];
-    const iterationsRaw = parts.length >= 4 ? parts[2] : String(ITERATIONS);
-    const hash = parts.length >= 4 ? parts[3] : parts[2];
-    if (!saltHex || !iterationsRaw || !hash || !globalThis.crypto?.subtle?.importKey) return false;
-    const salt = new Uint8Array(saltHex.match(/.{2}/g)?.map((byte) => parseInt(byte, 16)) ?? []);
-    const calculated = await derive(password, salt, Number(iterationsRaw));
-    return calculated === hash;
+    const parsed = parsePbkdf2(stored);
+    if (!parsed || !globalThis.crypto?.subtle?.importKey) return false;
+    try {
+      const calculated = await derive(password, parsed.salt, parsed.iterations);
+      return calculated === parsed.hash;
+    } catch {
+      return false;
+    }
   }
   if (stored.startsWith('demo-fallback$')) {
     const bytes = toHex(new TextEncoder().encode(password).slice(0, 16));
@@ -42,8 +56,12 @@ export async function verifyPassword(password: string, stored: string | undefine
   }
   const bytes = new TextEncoder().encode(`compra-inclusiva-demo:${password}`);
   if (!globalThis.crypto?.subtle?.digest) return false;
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return toHex(new Uint8Array(digest)) === stored;
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return toHex(new Uint8Array(digest)) === stored;
+  } catch {
+    return false;
+  }
 }
 
 export const DEMO_PASSWORD = 'Demo1234!';

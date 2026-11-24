@@ -52,4 +52,27 @@ describe('flujo autenticado', () => {
     await userEvent.click(buttons[0]);
     expect(await screen.findByRole('link', { name: /Mi carrito \(1\)/i })).toBeInTheDocument();
   });
+
+  it('permite iniciar sesión con las credenciales recién creadas', async () => {
+    const user = userEvent.setup();
+    renderAt('/register');
+    await user.type(await screen.findByLabelText(/nombre completo/i), 'Nueva Persona');
+    await user.type(screen.getByLabelText(/correo electrónico/i), 'nueva@example.com');
+    const passwordFields = screen.getAllByLabelText(/contraseña/i);
+    await user.type(passwordFields[0], 'NuevaClave123!');
+    await user.type(passwordFields[1], 'NuevaClave123!');
+    await user.click(screen.getByRole('button', { name: /continuar a necesidades/i }));
+    await user.click(await screen.findByRole('button', { name: /continuar al resumen/i }));
+    await user.click(await screen.findByRole('button', { name: /crear cuenta/i }));
+    expect(await screen.findByRole('heading', { name: /registro completado/i })).toBeInTheDocument();
+    expect(screen.getByText('nueva@example.com')).toBeInTheDocument();
+    expect(screen.getByLabelText(/contraseña creada/i)).toHaveValue('NuevaClave123!');
+    await user.click(screen.getByRole('button', { name: /mostrar contraseña/i }));
+    expect(screen.getByLabelText(/contraseña creada/i)).toHaveAttribute('type', 'text');
+    await user.click(screen.getByRole('link', { name: /ir a iniciar sesión/i }));
+    expect(await screen.findByLabelText(/correo electrónico/i)).toHaveValue('nueva@example.com');
+    expect(screen.getByLabelText(/contraseña/i)).toHaveValue('NuevaClave123!');
+    await user.click(screen.getByRole('button', { name: /entrar a mi catálogo/i }));
+    expect(await screen.findByRole('heading', { name: 'Catálogo general' })).toBeInTheDocument();
+  });
 });

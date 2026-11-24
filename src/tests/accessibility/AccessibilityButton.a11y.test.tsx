@@ -6,6 +6,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { AccessibilityButton } from '../../features/accessibility/AccessibilityButton';
 import { AccessibilityProvider } from '../../app/AccessibilityContext';
+import { safeStorage, STORAGE_KEYS } from '../../services/storage';
 
 function renderWithProvider() {
   // Crear el live-region que usa announce()
@@ -60,5 +61,31 @@ describe('AccessibilityButton', () => {
     fireEvent.click(screen.getByRole('button', { name: /opciones de accesibilidad/i }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
+  });
+
+  it('abre el panel con el atajo Alt+A', () => {
+    renderWithProvider();
+    fireEvent.keyDown(window, { key: 'a', altKey: true });
+    expect(screen.getByRole('dialog', { name: /menú de accesibilidad/i })).toBeInTheDocument();
+  });
+
+  it('filtra las herramientas desde el buscador', () => {
+    renderWithProvider();
+    fireEvent.click(screen.getByRole('button', { name: /opciones de accesibilidad/i }));
+    fireEvent.change(screen.getByLabelText(/buscar herramienta/i), { target: { value: 'contraste' } });
+    expect(screen.getByRole('switch', { name: /alto contraste/i })).toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /botones grandes/i })).toBeNull();
+  });
+
+  it('mueve el panel flotante con el teclado y guarda su posición', () => {
+    safeStorage.remove(STORAGE_KEYS.a11yPosition);
+    renderWithProvider();
+    const btn = screen.getByRole('button', { name: /opciones de accesibilidad/i });
+    const initialLeft = btn.style.left;
+    fireEvent.click(btn);
+    fireEvent.keyDown(screen.getByRole('button', { name: /mover panel de accesibilidad/i }), { key: 'ArrowLeft' });
+    expect(btn.style.left).not.toBe(initialLeft);
+    expect(safeStorage.get<{ x: number; y: number } | null>(STORAGE_KEYS.a11yPosition, null)).not.toBeNull();
+    safeStorage.remove(STORAGE_KEYS.a11yPosition);
   });
 });

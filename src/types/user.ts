@@ -12,6 +12,14 @@ export type DisabilityType =
 /** Rol del usuario en el sistema */
 export type UserRole = 'user' | 'admin';
 
+export type DisabilityLevel = 'leve' | 'moderado' | 'alto';
+
+export interface DisabilityLevelData {
+  score: number;
+  level: DisabilityLevel;
+  answers: number[];
+}
+
 export interface User {
   id: string;
   name: string;
@@ -38,4 +46,10 @@ export interface User {
   };
   cart?: Record<string, number>;
   orders?: string[];
+  /**
+   * Niveles funcionales por tipo de discapacidad.
+   * Calculados mediante cuestionario de autoreporte en el registro.
+   * Opcional: usuarios existentes y demos funcionan sin este campo.
+   */
+  disabilityLevels?: Partial<Record<'visual' | 'auditiva' | 'motriz' | 'cognitiva', DisabilityLevelData>>;
 }

@@ -62,7 +62,8 @@ describe('flujo autenticado', () => {
     await user.type(passwordFields[0], 'NuevaClave123!');
     await user.type(passwordFields[1], 'NuevaClave123!');
     await user.click(screen.getByRole('button', { name: /continuar a necesidades/i }));
-    await user.click(await screen.findByRole('button', { name: /continuar al resumen/i }));
+    // Paso 2: sin discapacidades, el botón continúa directo a confirmación
+    await user.click(await screen.findByRole('button', { name: /continuar/i }));
     await user.click(await screen.findByRole('button', { name: /crear cuenta/i }));
     expect(await screen.findByRole('heading', { name: /registro completado/i })).toBeInTheDocument();
     expect(screen.getByText('nueva@example.com')).toBeInTheDocument();

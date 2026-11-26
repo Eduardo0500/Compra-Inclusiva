@@ -6,8 +6,9 @@ import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../../app/AuthContext';
 import { useUserRegistry } from '../../app/UserRegistryContext';
+import { LEVEL_LABELS } from '../../services/identity';
 import type { AccessibilityPreferences } from '../../types/accessibility';
-import type { User } from '../../types/user';
+import type { DisabilityLevelData, User } from '../../types/user';
 
 const DISABILITY_LABELS: Record<string, string> = {
   visual: 'Visual',
@@ -35,6 +36,13 @@ function formatFecha(iso?: string): string {
   try {
     return new Intl.DateTimeFormat('es-ES', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
   } catch { return iso; }
+}
+
+function levelsResumen(levels?: Partial<Record<string, DisabilityLevelData>>): string {
+  if (!levels || !Object.keys(levels).length) return '—';
+  return Object.entries(levels)
+    .map(([k, v]) => `${k}: ${LEVEL_LABELS[v!.level]}`)
+    .join(', ');
 }
 
 export function AdminPage() {
@@ -157,7 +165,7 @@ export function AdminPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                 <thead>
                   <tr style={{ background: '#f0f0f0' }}>
-                    {['Nombre', 'Correo', 'Discapacidad', 'Consentimiento', 'Preferencias de accesibilidad', 'Registro', 'Acción'].map(h => (
+                    {['Nombre', 'Correo', 'Discapacidad', 'Consentimiento', 'Preferencias de accesibilidad', 'Niveles', 'Registro', 'Acción'].map(h => (
                       <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 700, whiteSpace: 'nowrap', borderBottom: '1px solid #ddd' }}>
                         {h}
                       </th>
@@ -200,8 +208,9 @@ function Tarjeta({ titulo, valor }: { titulo: string; valor: number }) {
 }
 
 function FilaUsuario({ user, zebra, onEliminar }: { user: User; zebra: boolean; onEliminar: () => void }) {
-  const disc = user.disabilities.map((item) => DISABILITY_LABELS[item] ?? item).join(', ') || '—';
+  const disc  = user.disabilities.map(item => DISABILITY_LABELS[item] ?? item).join(', ') || '—';
   const prefs = prefsResumen(user.accessibilityPreferences);
+  const levels = levelsResumen(user.disabilityLevels);
 
   return (
     <tr style={{ background: zebra ? '#fafafa' : '#fff', borderBottom: '1px solid #eee' }}>
@@ -228,6 +237,7 @@ function FilaUsuario({ user, zebra, onEliminar }: { user: User; zebra: boolean; 
         )}
       </td>
       <td style={{ padding: '0.65rem 1rem', color: '#444', fontSize: '0.85rem', maxWidth: 260 }}>{prefs}</td>
+      <td style={{ padding: '0.65rem 1rem', color: '#555', fontSize: '0.82rem' }}>{levels}</td>
       <td style={{ padding: '0.65rem 1rem', color: '#666', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
         {formatFecha(user.registeredAt)}
       </td>

@@ -7,7 +7,7 @@ import { useAccessibility } from '../../app/AccessibilityContext';
 import { useOptionalAuth } from '../../app/AuthContext';
 import { safeStorage, STORAGE_KEYS } from '../../services/storage';
 import {
-  ALL_TOOLS, CATALOG_KIND_LABELS, TOOL_DESCRIPTIONS, TOOL_LABELS,
+  CATALOG_KIND_LABELS, TOOL_CATEGORIES, TOOL_DESCRIPTIONS, TOOL_LABELS,
   catalogKindForUser, needsForUser, needsLabel, recommendedToolsForNeeds,
   type AccessibilityTool,
 } from '../../services/identity';
@@ -25,7 +25,8 @@ const TOOL_ICONS: Record<AccessibilityTool, string> = {
   readContent: '▶', keyboardNavigation: '⌨', colorMode: '◧',
 };
 const MARGIN = 16;
-const FAB = 56;
+const FAB    = 56;
+const MOVE_STEP = 24;
 
 /* ── Helpers de viewport ────────────────────────────────────────────────── */
 interface VP { w: number; h: number; ox: number; oy: number }
@@ -33,8 +34,8 @@ function getVP(): VP {
   if (typeof window === 'undefined') return { w: 1280, h: 800, ox: 0, oy: 0 };
   const vv = window.visualViewport;
   return {
-    w: vv ? vv.width  : window.innerWidth,
-    h: vv ? vv.height : window.innerHeight,
+    w:  vv ? vv.width  : window.innerWidth,
+    h:  vv ? vv.height : window.innerHeight,
     ox: vv ? vv.offsetLeft : 0,
     oy: vv ? vv.offsetTop  : 0,
   };
@@ -58,22 +59,37 @@ export function AccessibilityButton() {
     return s && Number.isFinite(s.x) ? s : null;
   });
   const [isDragging, setDrag] = useState(false);
+  const [query, setQuery]     = useState('');
+  /* categorías abiertas por id */
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set());
 
-  const btnRef   = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const dragRef  = useRef<{ id: number; sx: number; sy: number; px: number; py: number } | null>(null);
-  const didMove  = useRef(false);
+  const btnRef    = useRef<HTMLButtonElement>(null);
+  const panelRef  = useRef<HTMLDivElement>(null);
+  const dragRef   = useRef<{ id: number; sx: number; sy: number; px: number; py: number } | null>(null);
+  const didMove   = useRef(false);
+  const moveBtnRef = useRef<HTMLButtonElement>(null);
 
-  const panelId  = useId();
+  const panelId   = useId();
+  const searchId  = `${panelId}-search`;
 
   const { prefs, updatePref, resetPrefs, announce } = useAccessibility();
-  const auth  = useOptionalAuth();
-  const user  = auth?.user ?? null;
-  const needs = needsForUser(user);
-  const rec   = recommendedToolsForNeeds(needs);
+  const auth    = useOptionalAuth();
+  const user    = auth?.user ?? null;
+  const needs   = needsForUser(user);
+  const rec     = recommendedToolsForNeeds(needs);
   const catKind = catalogKindForUser(user);
-
   const fabSize = prefs.largeButtons ? 64 : FAB;
+
+  /* categorías recomendadas para este usuario */
+  const recCatIds = useMemo(
+    () => new Set(TOOL_CATEGORIES.filter(c => needs.includes(c.id as never)).map(c => c.id)),
+    [needs],
+  );
+
+  /* al abrir el panel, expandir las categorías recomendadas */
+  useEffect(() => {
+    if (open) setOpenCats(new Set(recCatIds));
+  }, [open]);
 
   /* resolved FAB position */
   const resolved = useMemo<Pos>(() => {
@@ -83,21 +99,21 @@ export function AccessibilityButton() {
 
   /* panel style: above or below FAB */
   const panelStyle = useMemo<CSSProperties>(() => {
-    const W = Math.min(360, Math.max(280, vp.w - MARGIN * 2));
+    const W    = Math.min(380, Math.max(280, vp.w - MARGIN * 2));
     const above = resolved.y - MARGIN - 8;
     const below = vp.h - (resolved.y + fabSize) - MARGIN - 8;
-    const maxH  = Math.min(Math.max(above, below), vp.h * 0.78);
+    const maxH  = Math.min(Math.max(above, below), vp.h * 0.82);
     const left  = Math.min(
       Math.max(MARGIN, resolved.x + fabSize - W),
       vp.w - W - MARGIN,
     );
-    const s: CSSProperties = { width: W, maxHeight: Math.max(240, maxH), left: left + vp.ox };
+    const s: CSSProperties = { width: W, maxHeight: Math.max(260, maxH), left: left + vp.ox };
     if (above >= below) s.bottom = vp.h - resolved.y + 8 - vp.oy;
     else                s.top    = resolved.y + fabSize + 8 + vp.oy;
     return s;
   }, [resolved, vp, fabSize]);
 
-  /* ── efectos ── */
+  /* ── efectos de viewport y teclado ──────────────────────────────────── */
   useEffect(() => {
     const up = () => setVp(getVP());
     window.addEventListener('resize', up);
@@ -114,6 +130,7 @@ export function AccessibilityButton() {
     if (!pos) return;
     const c = clamp(pos, vp, fabSize);
     if (c.x !== pos.x || c.y !== pos.y) setPos(c);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vp, fabSize]);
 
   useEffect(() => { if (pos) safeStorage.set(STORAGE_KEYS.a11yPosition, pos); }, [pos]);
@@ -135,7 +152,7 @@ export function AccessibilityButton() {
     return () => window.removeEventListener('keydown', h);
   }, []);
 
-  /* ── drag en el FAB ── */
+  /* ── drag en el FAB ─────────────────────────────────────────────────── */
   const onDown = (e: RPointerEvent<HTMLButtonElement>) => {
     dragRef.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, px: resolved.x, py: resolved.y };
     didMove.current = false;
@@ -154,10 +171,36 @@ export function AccessibilityButton() {
     btnRef.current?.releasePointerCapture(e.pointerId);
     dragRef.current = null;
     setDrag(false);
+    // No toggle aquí — lo hace onClick para compatibilidad con jsdom/tests
+  };
+  const onFabClick = () => {
+    // Solo abre/cierra si no hubo arrastre
     if (!didMove.current) setOpen(v => !v);
+    didMove.current = false;
   };
 
-  /* ── focus trap ── */
+  /* ── mover con teclado (botón "Mover panel") ─────────────────────────── */
+  const moveBy = useCallback((dx: number, dy: number) => {
+    setPos(cur => {
+      const base = cur ?? resolved;
+      return clamp({ x: base.x + dx, y: base.y + dy }, vp, fabSize);
+    });
+  }, [resolved, vp, fabSize]);
+
+  const handleMoveKeyDown = useCallback((e: KeyboardEvent<HTMLButtonElement>) => {
+    const map: Record<string, [number, number]> = {
+      ArrowLeft:  [-1, 0], ArrowRight: [1, 0],
+      ArrowUp:    [0, -1], ArrowDown:  [0, 1],
+    };
+    const dir = map[e.key];
+    if (!dir) return;
+    e.preventDefault();
+    const step = e.shiftKey ? MOVE_STEP * 2 : MOVE_STEP;
+    moveBy(dir[0] * step, dir[1] * step);
+    safeStorage.set(STORAGE_KEYS.a11yPosition, pos ?? resolved);
+  }, [moveBy, pos, resolved]);
+
+  /* ── focus trap ─────────────────────────────────────────────────────── */
   const trap = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Tab' || !panelRef.current) return;
     const els = Array.from(panelRef.current.querySelectorAll<HTMLElement>(
@@ -170,10 +213,11 @@ export function AccessibilityButton() {
       { e.preventDefault(); els[0].focus(); }
   }, []);
 
-  /* ── helpers de preferencia ── */
+  /* ── helpers de preferencia ─────────────────────────────────────────── */
   const change = useCallback((tool: AccessibilityTool, val: boolean | string) => {
     updatePref(tool as keyof AccessibilityPreferences, val as never);
-    announce(`${TOOL_LABELS[tool]} ${typeof val === 'boolean' ? (val ? 'activado' : 'desactivado') : 'actualizado'}.`);
+    const label = `${TOOL_LABELS[tool]} ${typeof val === 'boolean' ? (val ? 'activado' : 'desactivado') : 'actualizado'}`;
+    announce(label);
   }, [updatePref, announce]);
 
   const changeScale = useCallback((dir: 1 | -1) => {
@@ -183,16 +227,25 @@ export function AccessibilityButton() {
     announce(`Texto al ${SCALE_PCT[next]}.`);
   }, [prefs.textScale, updatePref, announce]);
 
-  const isActive = (tool: AccessibilityTool): boolean => {
+  const isActive = useCallback((tool: AccessibilityTool): boolean => {
     if (tool === 'textScale')  return prefs.textScale > 1;
     if (tool === 'colorMode')  return prefs.colorMode !== 'normal';
     return !!(prefs[tool as keyof AccessibilityPreferences]);
-  };
+  }, [prefs]);
 
-  const activeCount = ALL_TOOLS.filter(isActive).length;
+  const activeCount = useMemo(
+    () => TOOL_CATEGORIES.flatMap(c => c.tools).filter((t, i, a) => a.indexOf(t) === i && isActive(t)).length,
+    [isActive],
+  );
 
-  /* ── render de cada herramienta ── */
-  const renderTool = (tool: AccessibilityTool, suggested: boolean) => {
+  /* ── filtro de búsqueda ─────────────────────────────────────────────── */
+  const normalizedQuery = query.trim().toLocaleLowerCase('es');
+  const matchTool = (tool: AccessibilityTool) =>
+    !normalizedQuery ||
+    `${TOOL_LABELS[tool]} ${TOOL_DESCRIPTIONS[tool]}`.toLocaleLowerCase('es').includes(normalizedQuery);
+
+  /* ── render de un control de herramienta ────────────────────────────── */
+  const renderTool = useCallback((tool: AccessibilityTool, suggested: boolean) => {
     const active = isActive(tool);
 
     if (tool === 'textScale') {
@@ -266,16 +319,54 @@ export function AccessibilityButton() {
         </button>
       </div>
     );
+  }, [isActive, prefs, change, changeScale]);
+
+  /* ── render de una categoría plegable ───────────────────────────────── */
+  const renderCategory = (cat: typeof TOOL_CATEGORIES[0]) => {
+    const isRec     = recCatIds.has(cat.id);
+    const isOpen    = openCats.has(cat.id) || !!normalizedQuery;
+    const bodyId    = `${panelId}-cat-${cat.id}`;
+    const tools     = cat.tools.filter((t, i, a) => a.indexOf(t) === i && matchTool(t));
+    if (tools.length === 0) return null;
+
+    const toggle = () => {
+      setOpenCats(prev => {
+        const next = new Set(prev);
+        if (next.has(cat.id)) next.delete(cat.id);
+        else next.add(cat.id);
+        return next;
+      });
+    };
+
+    return (
+      <div key={cat.id} className={`${styles.category} ${isRec ? styles.categoryRec : ''}`}>
+        <button
+          type="button"
+          className={styles.categoryBtn}
+          aria-expanded={isOpen}
+          aria-controls={bodyId}
+          onClick={toggle}
+        >
+          <span className={styles.catIcon} aria-hidden="true">{cat.icon}</span>
+          <span className={styles.catLabel}>
+            {cat.label}
+            {isRec && <span className={styles.catBadge}>Para ti</span>}
+          </span>
+          <span className={styles.catChevron} aria-hidden="true">{isOpen ? '▲' : '▼'}</span>
+        </button>
+        {isOpen && (
+          <div id={bodyId} className={styles.categoryBody}>
+            {tools.map(t => renderTool(t, isRec && rec.includes(t)))}
+          </div>
+        )}
+      </div>
+    );
   };
 
-  /* ── grupos ── */
-  const recTools   = rec;
-  const otherTools = ALL_TOOLS.filter(t => !rec.includes(t));
-
-  /* ── JSX ── */
+  /* ── JSX ─────────────────────────────────────────────────────────────── */
   return (
     <>
-      {/* FAB */}
+      {/* FAB arrastrable */}
       <button
         ref={btnRef}
         className={`${styles.fab} ${isDragging ? styles.fabDragging : ''}`}
@@ -288,6 +379,7 @@ export function AccessibilityButton() {
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
+        onClick={onFabClick}
       >
         <A11yIcon aria-hidden="true" />
         {activeCount > 0 && (
@@ -319,23 +411,50 @@ export function AccessibilityButton() {
                   : 'Ajusta cómo se ve la app'}
               </p>
             </div>
-            <button className={styles.closeBtn} aria-label="Cerrar" onClick={() => setOpen(false)}>
-              <CloseIcon aria-hidden="true" />
-            </button>
+            <div className={styles.headerActions}>
+              {/* Botón mover con teclado */}
+              <button
+                ref={moveBtnRef}
+                className={styles.iconBtn}
+                aria-label="Mover panel de accesibilidad"
+                title="Usa las flechas del teclado para mover el botón"
+                onKeyDown={handleMoveKeyDown}
+              >
+                <MoveIcon aria-hidden="true" />
+              </button>
+              <button className={styles.closeBtn} aria-label="Cerrar" onClick={() => setOpen(false)}>
+                <CloseIcon aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
-          {/* Body */}
+          {/* Buscador */}
+          <div className={styles.searchBox}>
+            <label htmlFor={searchId} className={styles.searchLabel}>Buscar herramienta</label>
+            <input
+              id={searchId}
+              type="search"
+              value={query}
+              autoComplete="off"
+              placeholder="Ej.: contraste, texto, subtítulos…"
+              onChange={e => setQuery(e.target.value)}
+            />
+          </div>
+
+          {/* Body: categorías plegables */}
           <div className={styles.panelBody}>
-            {recTools.length > 0 && (
-              <>
-                <p className={styles.sectionTitle}>Para ti</p>
-                {recTools.map(t => renderTool(t, true))}
-              </>
+            {/* Sección «Para ti» cuando hay recomendadas */}
+            {rec.length > 0 && !normalizedQuery && (
+              <p className={styles.sectionTitle}>Mi configuración personalizada</p>
             )}
-            <p className={styles.sectionTitle}>
-              {recTools.length > 0 ? 'Más opciones' : 'Opciones de accesibilidad'}
-            </p>
-            {otherTools.map(t => renderTool(t, false))}
+
+            {TOOL_CATEGORIES.map(cat => renderCategory(cat))}
+
+            {/* Estado vacío en búsqueda */}
+            {normalizedQuery &&
+              TOOL_CATEGORIES.every(c => c.tools.filter(t => matchTool(t)).length === 0) && (
+              <p className={styles.emptySearch}>No se encontraron herramientas con «{query}».</p>
+            )}
           </div>
 
           {/* Footer */}
@@ -345,10 +464,14 @@ export function AccessibilityButton() {
               Restablecer
             </button>
             <button className={styles.footerBtn}
-              onClick={() => { safeStorage.remove(STORAGE_KEYS.a11yPosition); setPos(null); announce('Botón centrado.'); }}>
+              onClick={() => {
+                safeStorage.remove(STORAGE_KEYS.a11yPosition);
+                setPos(null);
+                announce('Botón vuelto al centro.');
+              }}>
               Centrar botón
             </button>
-            <p className={styles.footerNote}>Alt&nbsp;+&nbsp;A abre este menú.</p>
+            <p className={styles.footerNote}>Alt&nbsp;+&nbsp;A abre y cierra este menú.</p>
           </div>
         </div>
       )}
@@ -356,13 +479,22 @@ export function AccessibilityButton() {
   );
 }
 
-/* ── Iconos ─────────────────────────────────────────────────────────────── */
+/* ── Iconos SVG ──────────────────────────────────────────────────────────── */
 function A11yIcon(p: SVGProps<SVGSVGElement>) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
       width="26" height="26" {...p}>
       <circle cx="12" cy="3.5" r="2" />
       <path d="M19 7.5H5a1 1 0 0 0 0 2h4.5l-1.6 7.2-2.9 3.3a1 1 0 1 0 1.5 1.3l3-3.4a1 1 0 0 0 .2-.4l.8-3.5h2l.8 3.5a1 1 0 0 0 .2.4l3 3.4a1 1 0 1 0 1.5-1.3l-2.9-3.3-1.6-7.2H19a1 1 0 0 0 0-2z" />
+    </svg>
+  );
+}
+function MoveIcon(p: SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      width="18" height="18" {...p}>
+      <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M12 3v18M3 12h18" />
     </svg>
   );
 }

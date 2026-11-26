@@ -186,3 +186,105 @@ export const ALL_TOOLS: AccessibilityTool[] = [
   'signLanguage',
   'visualAlerts',
 ];
+
+export interface ToolCategory {
+  id: 'visual' | 'auditiva' | 'motriz' | 'cognitiva';
+  label: string;
+  icon: string;
+  tools: AccessibilityTool[];
+}
+
+export const TOOL_CATEGORIES: ToolCategory[] = [
+  {
+    id: 'visual',
+    label: 'Visual',
+    icon: '👁',
+    tools: ['textScale', 'highContrast', 'colorMode', 'readContent'],
+  },
+  {
+    id: 'auditiva',
+    label: 'Auditiva',
+    icon: '👂',
+    tools: ['captions', 'signLanguage', 'visualAlerts'],
+  },
+  {
+    id: 'motriz',
+    label: 'Motriz',
+    icon: '🖐',
+    tools: ['largeButtons', 'extraSpacing', 'keyboardNavigation'],
+  },
+  {
+    id: 'cognitiva',
+    label: 'Cognitiva',
+    icon: '🧠',
+    tools: ['simpleLanguage', 'extraSpacing', 'keyboardNavigation'],
+  },
+];
+
+/** Calcula el nivel funcional a partir de las respuestas de un cuestionario.
+ *  respuestas: array de 5 valores 0–3.
+ *  Retorna: score (suma 0-15), level ('leve' | 'moderado' | 'alto') y los answers originales.
+ */
+export function calcularNivel(respuestas: number[]): {
+  score: number;
+  level: 'leve' | 'moderado' | 'alto';
+  answers: number[];
+} {
+  const score = respuestas.reduce((acc, v) => acc + Math.min(3, Math.max(0, v)), 0);
+  const level: 'leve' | 'moderado' | 'alto' =
+    score <= 3 ? 'leve' : score <= 8 ? 'moderado' : 'alto';
+  return { score, level, answers: [...respuestas] };
+}
+
+/* ── Cuestionario de nivel de discapacidad (Tarea 4) ─────────────────────── */
+
+export type DisabilityNeedKey = 'visual' | 'auditiva' | 'motriz' | 'cognitiva';
+
+export interface LevelQuestion {
+  id: string;
+  text: string;
+}
+
+export const LEVEL_QUESTIONS: Record<DisabilityNeedKey, LevelQuestion[]> = {
+  visual: [
+    { id: 'v1', text: '¿Leer texto normal en pantalla te resulta difícil?' },
+    { id: 'v2', text: '¿Distinguir colores y botones te cuesta esfuerzo?' },
+    { id: 'v3', text: '¿Reconocer imágenes o fotos de productos te resulta difícil?' },
+    { id: 'v4', text: '¿Moverte por una página web sin ver el cursor te resulta difícil?' },
+    { id: 'v5', text: '¿Necesitas que el contenido te sea leído en voz alta?' },
+  ],
+  auditiva: [
+    { id: 'a1', text: '¿Entender audios o videos sin subtítulos te resulta difícil?' },
+    { id: 'a2', text: '¿Notar avisos sonoros del celular o computador te resulta difícil?' },
+    { id: 'a3', text: '¿Hablar por llamada telefónica te resulta difícil?' },
+    { id: 'a4', text: '¿Entender a alguien que te habla sin leer sus labios te resulta difícil?' },
+    { id: 'a5', text: '¿Necesitas intérprete de lengua de señas para comunicarte?' },
+  ],
+  motriz: [
+    { id: 'm1', text: '¿Usar el mouse o el dedo con precisión te resulta difícil?' },
+    { id: 'm2', text: '¿Tocar botones pequeños en pantalla te resulta difícil?' },
+    { id: 'm3', text: '¿Escribir en el teclado te resulta difícil?' },
+    { id: 'm4', text: '¿Mantener el pulso firme al hacer clic te resulta difícil?' },
+    { id: 'm5', text: '¿Necesitas más tiempo del habitual para completar formularios?' },
+  ],
+  cognitiva: [
+    { id: 'c1', text: '¿Entender textos largos o con palabras difíciles te resulta complicado?' },
+    { id: 'c2', text: '¿Recordar los pasos de un proceso largo te resulta difícil?' },
+    { id: 'c3', text: '¿Concentrarte cuando hay muchos elementos en pantalla te resulta difícil?' },
+    { id: 'c4', text: '¿Completar un formulario sin ayuda te resulta difícil?' },
+    { id: 'c5', text: '¿Necesitas instrucciones paso a paso para realizar tareas en la app?' },
+  ],
+};
+
+export const LEVEL_ANSWERS = [
+  { value: 0, label: 'Sin dificultad' },
+  { value: 1, label: 'Algo de dificultad' },
+  { value: 2, label: 'Mucha dificultad' },
+  { value: 3, label: 'No puedo hacerlo' },
+];
+
+export const LEVEL_LABELS: Record<'leve' | 'moderado' | 'alto', string> = {
+  leve:     'Leve',
+  moderado: 'Moderado',
+  alto:     'Alto',
+};

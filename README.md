@@ -131,3 +131,94 @@ src/
 ├── types/              # User, AccessibilityPreferences, Product, Order
 └── tests/              # Tests lógicos, funcionales y de accesibilidad
 ```
+
+---
+
+## Funcionalidades implementadas
+
+### Tarea 1 — Menú de accesibilidad organizado por categorías
+
+El botón flotante (Alt+A, arrastrable) abre un panel con cuatro categorías plegables:
+
+| Categoría | Herramientas |
+|---|---|
+| Visual | Tamaño de texto, Alto contraste, Cambiar colores, Lectura de contenido |
+| Auditiva | Subtítulos, Lengua de señas, Alertas visuales |
+| Motriz | Botones grandes, Mayor espaciado, Navegación por teclado |
+| Cognitiva | Lenguaje sencillo, Mayor espaciado, Navegación por teclado |
+
+- Las categorías del usuario (según `needsForUser`) aparecen primero, **abiertas** y marcadas «Para ti».
+- El buscador filtra dentro de todas las categorías.
+- Cada toggle anuncia su estado con `role="status"` (WCAG 4.1.3).
+- Botón «Mover panel» desplazable con flechas del teclado.
+
+**WCAG cubiertos:** 1.3.1, 2.1.1, 2.4.3, 2.4.7, 4.1.2, 4.1.3
+
+---
+
+### Tarea 2 — Formularios del flujo de compra adaptados por perfil
+
+`src/features/checkout/profileAdaptations.ts` exporta `getCheckoutAdaptation(needs, levels)` que combina adaptaciones según discapacidad y nivel funcional:
+
+| Perfil | Adaptaciones activas |
+|---|---|
+| Visual | Foco en título de paso, resumen aria-live, errores role="alert", instrucciones |
+| Auditiva | Solo avisos visuales, instrucciones claras |
+| Motriz | Campos ≥56 px, espaciado extra, autocomplete, ejemplos en campos |
+| Cognitiva | Lenguaje simple, indicador paso X/7, ejemplos, confirmación explícita |
+
+**WCAG cubiertos:** 1.3.1, 1.3.5, 2.4.3, 2.5.8, 3.3.1, 3.3.3, 3.3.4, 3.3.7
+
+---
+
+### Tarea 3 — Chatbot accesible para personas con discapacidad visual
+
+- **Entrada por voz** (`SpeechRecognition`, es-EC): botón «🎤 Hablar» oculto si el navegador no lo soporta. Estados anunciados con `announce()`.
+- **Respuesta por voz** (`SpeechSynthesis`): activa por defecto si `needs.includes('visual')` o `prefs.readContent`. Controles Pausar / Reanudar / Detener / 🔁 Repetir / velocidad.
+- **Lector de pantalla**: historial con `role="log" aria-live="polite"`, prefijos visualmente ocultos «Tú dijiste:» / «Asistente dijo:», foco devuelto al input tras enviar.
+- **Atajos**: Alt+C abre/cierra, Escape cierra, Enter envía. Botón «⌨ Atajos» documenta los atajos.
+
+**WCAG cubiertos:** 1.3.1, 2.1.1, 2.4.3, 4.1.2, 4.1.3
+
+---
+
+### Tarea 4 — Cuestionario de nivel de discapacidad en el registro
+
+Después de elegir necesidades (con consentimiento), el registro incluye un paso «Cuéntanos cómo te afecta»:
+
+- 5 preguntas por tipo de discapacidad, una por pantalla, con radiogroup nativo.
+- Respuestas: 0 Sin dificultad, 1 Algo, 2 Mucha, 3 No puedo.
+- `calcularNivel(respuestas)` suma 0–15 → leve (0–3) / moderado (4–8) / alto (9–15).
+- Niveles guardados en `User.disabilityLevels`.
+- **Leve** → herramientas sugeridas. **Moderado** → activa recomendadas. **Alto** → activa todas + máximas adaptaciones en checkout y TTS automático en chat.
+- Botón «Omitir» disponible en todo momento.
+- El panel `/admin` muestra la columna «Niveles» con el resumen por categoría.
+
+**WCAG cubiertos:** 2.1.1, 3.1.5, 3.3.1, 3.3.4, 3.3.7, 4.1.2
+
+---
+
+## Cuentas de demostración
+
+Contraseña de todas: **Demo1234!**
+
+| Correo | Perfil |
+|---|---|
+| `maria@ejemplo.com` | Visual |
+| `carlos@ejemplo.com` | Auditiva |
+| `ana@ejemplo.com` | Motriz |
+| `pedro@ejemplo.com` | Cognitiva |
+| `elena@ejemplo.com` | Visual + Motriz (combinado) |
+| `laura@ejemplo.com` | Sin discapacidad declarada |
+
+Administrador: `admin@compral.com` / `Admin2024!` → `/admin`
+
+## Cómo probar las tareas
+
+1. **Tarea 1**: Entra con `maria@ejemplo.com`. Pulsa el botón azul ♿ (o Alt+A). La categoría «Visual» aparece abierta y marcada «Para ti». Usa el buscador escribiendo «contraste».
+
+2. **Tarea 2**: Con `ana@ejemplo.com` (motriz), añade un producto al carrito y ve al checkout. Los botones son más grandes y los campos muestran ejemplos.
+
+3. **Tarea 3**: Con `maria@ejemplo.com` (visual), abre el chat (botón 💬 o Alt+C). La voz se activa automáticamente. Usa «🎤 Hablar» si tu navegador soporta la API.
+
+4. **Tarea 4**: Crea una cuenta nueva, selecciona «Visual» y da consentimiento. Aparece el cuestionario de 5 preguntas. Al terminar verás el nivel en el resumen. Entra a `/admin` para ver la columna «Niveles».
